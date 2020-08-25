@@ -1,0 +1,48 @@
+=======================================================
+=== PROGETTO VISITA GUIDATA [311045 - Arcelli Diego]
+=======================================================
+
+ALCUNE NOTE SUGLI ESERCIZI (IMPORTANTE!):
+	Il progetto deve essere risolto in codice C.
+	Il progetto deve contenere un makefile per la compilazione del codice
+	Il codice deve essere commentato
+
+=============================================
+=== TESTO PROGETTO
+=============================================
+
+A Perugia una agenzia turistica offre delle visite guidate lungo la citta'. Ogni mattina i turisti attendono la loro guida davanti l'agenzia, quando sono pronti a partire, la guida percorre il suo giro che si concluderà davanti alla agenzia. Ma non soddisfatti il giorno dopo ripeteranno la stessa routine.
+
+Implementare il sistema descritto, utilizzando dei thread POSIX per modellare turista e guida turistica.
+
+In totale si hanno:
+- 10 thread turisti
+- 2 thread guida turistica
+
+Guida Turistica:
+In un ciclo infinito esegue:
+1) Attende di avere un gruppo di 4 turisti
+2) Esegue il suo giro, impiegando 3/5 secondi (*vedi sotto)
+3) Lascia i turisti davanti l'agenzia e poi rinizia il suo ciclo
+
+Turista:
+In un ciclo infinito esegue:
+1) Attende alla agenzia la propria guida (*vedi sotto)
+2) Parla con la guida (quella corretto)
+3) Paga il biglietto e attende di partire per il giro turistico
+4) A fine giro attende 2 secondi e poi si rimette in coda per un altro giro
+
+Esistono 2 guide turistiche A e B che eseguono due giri diversi:
+- Guida A impiega 3 secondi e il biglietto costa 4 euro
+- Guida B impiega 5 secondi e il biglietto costa 10 euro
+
+All'inizio di ogni ciclo ogni turista sceglie quale giro turistico eseguire (in modo deterministico o randomico a sua scelta) e attendono la propria guida turistica.
+
+Alcune note/suggerimenti:
+- utilizzare strumenti di mutex e/o conditional variables per la sincronizzazione dei thread
+- l'agenzia e' unica, tutti i turisti (sia della guida A che di quella B) attendono nella stessa agenzia ma devono eseguire il giro turistico con la guida corretta (che dipende dal biglietto scelto)
+- la comunicazione tra turista e guida turistica deve avvenire tramite fifo con nome
+-- La comunicazione puo' essere molto semplice
+-- Esempio:
+-- Guida scrive: 4 euro
+-- Turista risponde: 4 euro
