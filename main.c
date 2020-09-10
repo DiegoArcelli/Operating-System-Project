@@ -23,10 +23,25 @@ volatile sig_atomic_t fine = 0;
 int ultimo_giro = 0;
 int flag_ultimo_giro_guide[2] = {0, 0};
 
-// Gestore della SIGINT
-void gestore_uscita() {
-    fine = 1;
-    Write(STDOUT_FILENO, "\n", 2);
+// Gestore della SIGINT e della SIGQUIT
+void gestore_segnali(int signum) {
+    if (signum == SIGINT) {
+        /* La SIGINT attiva un flag che permette alle due guide di potersi
+        sincronizzare per effettuare l'ultimo tour (quindi non termina immediatamente
+        il processo)*/
+        fine = 1;
+        Write(STDOUT_FILENO, "\n", 2);
+    } else if (signum == SIGQUIT) {
+        /* La SIQUIT fa terminare immediatamente il processo, ma prima elimina le pipe e
+        stampa il saldo totale delle guide (la printf non è una funzione safe ma comunque
+        il processo viene terminato)*/
+        printf("[AGENZIA] Saldo totale guide: %d euro\n", str_guida[0].saldo + str_guida[1].saldo);
+        fflush(stdout);
+        Unlink("pipe_guida_A");
+        Unlink("pipe_guida_B");
+        _exit(1);
+    }
+
 }
 
 
@@ -159,6 +174,7 @@ void* guida(void* arg) {
 
         /* Terminate le comunicazioni la guida A inizia il tour attendendo 3 secondi e la guida B attendendo
         5 secondi*/
+        
         if (id == 0) {
             sleep(3);
         } else {
@@ -316,10 +332,11 @@ int main(int argc, char* argv[]) {
     pthread_t thread_B;
     pthread_t thread_turisti[NUM_TURISTI];
 
-    // Assegna il nuovo gestore del segnale SIGINT
+    // Assegna il nuovo gestore ai segnali SIGINT e SIGQUIT
     struct sigaction new_action;
     memset(&new_action, 0, sizeof(struct sigaction));
-    new_action.sa_handler = gestore_uscita;
+    new_action.sa_handler = gestore_segnali;
+    sigaction(SIGQUIT, &new_action, NULL);
     sigaction(SIGINT, &new_action, NULL);
 
     // Inizializzazione di mutex e variabili condizionali
@@ -354,7 +371,7 @@ int main(int argc, char* argv[]) {
         Pthread_join(thread_turisti[i]);
     }
 
-    printf("Saldo totale guide: %d euro\n", str_guida[0].saldo + str_guida[1].saldo);
+    printf("[AGENZIA] Saldo totale guide: %d euro\n", str_guida[0].saldo + str_guida[1].saldo);
 
     // Si distruggono mutex e variaili condizionali e si eliminano le pipe
     Unlink("pipe_guida_A");
