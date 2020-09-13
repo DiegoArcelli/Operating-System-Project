@@ -30,15 +30,14 @@ void gestore_segnali(int signum) {
         sincronizzare per effettuare l'ultimo tour (quindi non termina immediatamente
         il processo)*/
         fine = 1;
-        Write(STDOUT_FILENO, "\n", 2);
+        Write(STDOUT_FILENO, "\n", 1);
     } else if (signum == SIGQUIT) {
-        /* La SIQUIT fa terminare immediatamente il processo, ma prima elimina le pipe e
-        stampa il saldo totale delle guide (la printf non è una funzione safe ma comunque
-        il processo viene terminato)*/
-        printf("[AGENZIA] Saldo totale guide: %d euro\n", str_guida[0].saldo + str_guida[1].saldo);
-        fflush(stdout);
+        /* La SIGQUIT fa terminare immediatamente il processo, ma prima elimina le pipe e
+        stampa il saldo totale delle guide. In questo caso il saldo totale non viene stampato
+        perchè per farlo si sarebbe dovuta utilizzare la funzione printf che non è signal safe*/
         Unlink("pipe_guida_A");
         Unlink("pipe_guida_B");
+        Write(STDOUT_FILENO, "\n[AGENZIA] Terminazione immediata dei tour\n", 44);
         _exit(1);
     }
 
@@ -65,13 +64,13 @@ void* guida(void* arg) {
         // Le guide inizializzano i valori degli attributi per il nuovo tour
 
         for (int i = 0; i < str_guida[id].num_gruppo; i++) {
-            str_guida[id].gruppo[i] = -1; // il valore -1 indica che il posto è vuoto
+            str_guida[id].gruppo[i] = -1; // Il valore -1 indica che il posto è vuoto
         }
         str_guida[id].num_gruppo = 0;
         str_guida[id].num_interessati = 0;
 
-        /* La guida si mette in attesa sulla varabile condizionale guide_pronte finchè tutti  i
-        sono pronnti per inziziare il nuovo tour della giornata */
+        /* La guida si mette in attesa sulla varabile condizionale guide_pronte e attende che
+        tutti i turisti siano pronti per inziziare il nuovo tour della giornata */
 
         Pthread_mutex_lock(&mtx_guide);
         while(turisti_pronti < NUM_TURISTI) {
@@ -79,7 +78,7 @@ void* guida(void* arg) {
         }
 
 
-        /* L'ultima delle due guide ad usicere dalla wait reiposta i flag condivisi tra le guide */
+        /* L'ultima delle due guide ad usicere dalla wait reimposta i flag condivisi tra le guide */
         flag_guide--;
         if (flag_guide == 0) {
             turisti_pronti = 0;
@@ -104,8 +103,7 @@ void* guida(void* arg) {
         /* Quando viene ricevuto il segnale SIGINT e la variabile fine viene impostata ad 1, entrambe
         le guide aggiornano un loro flag personale per prepararsi al tour finale. Quando entrambe le
         guide hanno settato il flag allora l'agenzia stampa l'inizio dell'ultimo tour e la variabile
-        ulitmo giro (che serve a regolare l'uscita dal loop) viene impostata da 1. Si attende che
-        entrambe le guide abbiano settato  */ 
+        ulitmo giro (che serve a regolare l'uscita dal loop) viene impostata da 1 */ 
 
         if (fine == 1) {
             if (flag_ultimo_giro_guide[id] == 0) {
@@ -113,7 +111,7 @@ void* guida(void* arg) {
             }
             if (flag_ultimo_giro_guide[id] + flag_ultimo_giro_guide[!id] == 2) {
                 ultimo_giro = 1;
-                printf("[AGENZIA]: Sta iniziando l'ultimo tour\n");
+                printf("[AGENZIA] Sta iniziando l'ultimo tour\n");
                 fflush(stdout);
             }
         }
@@ -122,15 +120,15 @@ void* guida(void* arg) {
         Pthread_cond_broadcast(&attesa_guide);
         Pthread_mutex_unlock(&mtx_guide);
 
-        printf("[GUIDA %c]: Pronto per ricevere turisti\n", str_guida[id].id);
+        printf("[GUIDA %c] Pronto per ricevere turisti\n", str_guida[id].id);
         fflush(stdout);
         
         /* Ognuna delle due guide si mette in attesta sulla corrispettiva variabile condizionale
-        attesa_turisti fintanto che si forma un gruppo di 4 turisti per il tuor. Siccome è possibile
-        che il numero di tursti che vogliono effetuare il tour con una guida sia minore di 4 si gestisce 
-        tale eventualita verificando se la somma tra il numero turisti che hanno espresso il loro
+        attesa_turisti finchè non si forma un gruppo di 4 turisti per il tuor. Siccome è possibile
+        che il numero di tursti che vogliano effetuare il tour con una guida sia minore di 4, si gestisce 
+        tale eventualita verificando che la somma tra il numero turisti che hanno espresso il loro
         interesse per la guida A con il numero di turisti che hanno espresso il loro interesse per la
-        guida B è 10. Se lo è allora la guida inizia il tour con meno di 4 turisti. */
+        guida B sia 10. Se lo è allora la guida inizia il tour con meno di 4 turisti. */
 
         Pthread_mutex_lock(&mtx_guida[id]);
         while (str_guida[id].num_gruppo < DIM_GRUPPO) {
@@ -143,12 +141,12 @@ void* guida(void* arg) {
                 Pthread_cond_wait(&attesa_turisti[id], &mtx_guida[id]);
             }
         }
-        printf("[GUIDA %c]: Numero turisti %d\n", str_guida[id].id, str_guida[id].num_gruppo);
+        printf("[GUIDA %c] Numero turisti %d\n", str_guida[id].id, str_guida[id].num_gruppo);
         fflush(stdout);
         Pthread_mutex_unlock(&mtx_guida[id]);
 
 
-        /* La guida inizia la comunicazione tramite named pipe con i turisti presenti nel suo gruppo
+        /* La guida inizia la comunicazione tramite named pipe con i turisti presenti nel suo gruppo,
         mettendosi in comunicazione con un turista alla volta. La corretta sincronizzazione dell'invio
         e della ricezione dei messaggi con il turista è garantita dal fatto che la read e la write
         sono entrambe bloccanti */
@@ -162,11 +160,11 @@ void* guida(void* arg) {
             Read(rfd, buff, BUFF_SIZE);
             Close(rfd);
             if (id == 0) {
-                printf("[GUIDA %c]: Il turista %d ha effettuato il pagamento di 4 euro\n", str_guida[id].id , str_guida[id].gruppo[i]);
+                printf("[GUIDA %c] Il turista %d ha effettuato il pagamento di 4 euro\n", str_guida[id].id , str_guida[id].gruppo[i]);
                 fflush(stdout);
                 str_guida[id].saldo += 4;
             } else {
-                printf("[GUIDA %c]: Il turista %d ha effettuato il pagamento di 10 euro\n", str_guida[id].id , str_guida[id].gruppo[i]);
+                printf("[GUIDA %c] Il turista %d ha effettuato il pagamento di 10 euro\n", str_guida[id].id , str_guida[id].gruppo[i]);
                 fflush(stdout);
                 str_guida[id].saldo += 10;
             }
@@ -182,7 +180,7 @@ void* guida(void* arg) {
         }
 
         // Al termine del tour la guida stampa i soldi che ha guadagnato in tutti i tour
-        printf("[GUIDA %c]: Bilancio: %d euro\n", str_guida[id].id , str_guida[id].saldo);
+        printf("[GUIDA %c] Bilancio: %d euro\n", str_guida[id].id , str_guida[id].saldo);
         fflush(stdout);
 
         /* Sveglia i turisti del gruppo che sono in attesa sulla variabile condizionale tour della
@@ -190,8 +188,9 @@ void* guida(void* arg) {
 
         Pthread_cond_broadcast(&tour[id]);
 
+        // Se si è effettuato l'ultimo tour la guida segnala la chiusura dei tour e esce dal loop
         if (ultimo_giro == 1) {
-            printf("[GUIDA %c]: Tour chiusi\n", str_guida[id].id);
+            printf("[GUIDA %c] Tour chiusi\n", str_guida[id].id);
             fflush(stdout);
             break;
         }
@@ -226,15 +225,15 @@ void* turista(void* arg) {
         /* Il turista memorizza nella variabile pos il suo ordine di arrivo per la guida scelta. La
         variabile pos serve a gestire l'accesso al tour: i primi quattro turisti ad arrivare (quindi
         quelli con pos < 4) saranno quelli che parteciperanno al tour della loro guida. Il turista però
-        non inserisce ancora il sui id nell'array del gruppo della guida scelta, poichè a questo punto
+        non inserisce ancora il suo id nell'array del gruppo della guida scelta, poichè a questo punto
         del codice è possibile che la guida stia ancora effettuando il tour precedente. È stata scelta
         questa modalità di prenotazione dei turisti per avvantaggiare i turisti che non sono riusciti a
         rientrare nel gruppo per il tour: in questo modo, mentre gli altri turisti stanno effettuando il
         tour, loro possono già prenotarsi per il tour della giornata successiva. In questo modo si evita
         che un turista non riesca mai a partecipare ad un tour.
-        Altra nota: sebbene la scelta di quale turista parteciperà al tour e quale no viene presa in
-        qesto punto si è scelto di effettuare la stampa di questa informazione successivamente, quando
-        le guide hanno terminato il tour in corso e sono pronte per partire con il successivo, per
+        Altra nota: sebbene la scelta di quali turisti parteciperanno al tour e quali no viene presa in
+        qesto punto, si è scelto di effettuare la stampa di questa informazione successivamente, quando
+        le guide avranno terminato il tour in corso e saranno pronte per partire con il successivo, per
         rendere più leggibile l'output del programma */
 
         Pthread_mutex_lock(&mtx_guida[scelta]);
@@ -268,7 +267,7 @@ void* turista(void* arg) {
             dell'array per inserirsi nel gruppo */
 
             str_guida[scelta].gruppo[str_guida[scelta].num_gruppo++] = id_turista;
-            printf("[TURISTA %d]: Mi sono prenoatato per la guida %c\n", id_turista, str_guida[scelta].id);
+            printf("[TURISTA %d] Mi sono prenotato per la guida %c\n", id_turista, str_guida[scelta].id);
             fflush(stdout);
             count_arrivi[scelta]--;
             Pthread_cond_signal(&attesa_turisti[scelta]);
@@ -276,7 +275,7 @@ void* turista(void* arg) {
             Pthread_mutex_unlock(&mtx_guida[scelta]);
 
             /* I turisiti del gruppo si mettono, uno alla volta, in comunicazione della guida. Il turista
-            il lock lo rilascia solo dopo aver ricevuto ed inivato il messaggio alla guida. La corretta sequenza
+            rilascia il lock solo dopo aver ricevuto ed inivato il messaggio alla guida. La corretta sequenza
             delle due operazioni è garantita dal fatto che la read e la write sono bloccanti */
 
             Pthread_mutex_lock(&mtx_pipe[scelta]);
@@ -288,21 +287,21 @@ void* turista(void* arg) {
             Close(wfd);
             Pthread_mutex_unlock(&mtx_pipe[scelta]);
             
-            /* Il turista si mette in attesa sulla variabile condizionale tour, finchè la sua non termina la sleep
-            ed effettua la broadcast per svegliare i turisti */
+            /* Il turista si mette in attesa sulla variabile condizionale tour, finchè la sua guida non termina
+            la sleep ed effettua la broadcast per svegliare i turisti */
 
             Pthread_mutex_lock(&mtx_guida[scelta]);
             Pthread_cond_wait(&tour[scelta], &mtx_guida[scelta]);
-            printf("[TURISTA %d]: Tour con guida %c finito\n", id_turista, str_guida[scelta].id);
+            printf("[TURISTA %d] Tour con guida %c finito\n", id_turista, str_guida[scelta].id);
             fflush(stdout);
             Pthread_mutex_unlock(&mtx_guida[scelta]);
 
         } else {
             
-            /* I turisti che non sono risuciti a prenotarsi lo stampano a schermo, attendono due secondi
-            e provano a riprenotarsi per il giorno successivo */
+            /* I turisti che non sono risuciti a prenotarsi lo segnalano stampando l'infomazione
+            a schermom. Attendono due secondi e provano a riprenotarsi per il giorno successivo */
 
-            printf("[TURISTA %d]: Posti finiti per guida %c\n", id_turista, str_guida[scelta].id);
+            printf("[TURISTA %d] Posti finiti per guida %c\n", id_turista, str_guida[scelta].id);
             fflush(stdout);
             count_arrivi[scelta]--;
             Pthread_cond_signal(&attesa_turisti[scelta]);
@@ -312,8 +311,8 @@ void* turista(void* arg) {
 
         sleep(2);
 
-        /* La variabile ultimo giorno viene settata ad 1 quando, dopo aver ricevuto il segnale SIGINT
-        le due guide si sincronizzano per effettuare l'ultimo tour, */
+        /* La variabile ultimo giorno viene settata ad 1 quando, dopo aver ricevuto il segnale SIGINT,
+        le due guide si sincronizzano per effettuare l'ultimo tour.  */
 
         if (ultimo_giro == 1) {
             break;
